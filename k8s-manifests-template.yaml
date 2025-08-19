@@ -36,19 +36,19 @@ metadata:
   namespace: app-namespace
 
 ---
-# Service Account for AI Service
+# Service Account for Conversation Navigator
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: ai-service-account
+  name: conversation-navigator-service-account
   namespace: app-namespace
 
 ---
-# Service Account for API Service
+# Service Account for Call Initiation Service
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: api-service-account
+  name: call-initiation-service-account
   namespace: app-namespace
 
 ---
@@ -400,26 +400,26 @@ spec:
           periodSeconds: 5
 
 ---
-# AI Service Deployment
+# Conversation Navigator Deployment
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: ai-service
+  name: conversation-navigator
   namespace: app-namespace
 spec:
   replicas: 2
   selector:
     matchLabels:
-      app: ai-service
+      app: conversation-navigator
   template:
     metadata:
       labels:
-        app: ai-service
+        app: conversation-navigator
     spec:
-      serviceAccountName: ai-service-account
+      serviceAccountName: conversation-navigator-service-account
       containers:
-      - name: ai-service
-        image: your-registry/ai-service:latest
+      - name: conversation-navigator
+        image: your-registry/conversation-navigator:latest
         ports:
         - containerPort: 8081
           name: http
@@ -450,26 +450,26 @@ spec:
           periodSeconds: 10
 
 ---
-# API Service Deployment
+# Call Initiation Service Deployment
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: api-service
+  name: call-initiation-service
   namespace: app-namespace
 spec:
   replicas: 2
   selector:
     matchLabels:
-      app: api-service
+      app: call-initiation-service
   template:
     metadata:
       labels:
-        app: api-service
+        app: call-initiation-service
     spec:
-      serviceAccountName: api-service-account
+      serviceAccountName: call-initiation-service-account
       containers:
-      - name: api-service
-        image: your-registry/api-service:latest
+      - name: call-initiation-service
+        image: your-registry/call-initiation-service:latest
         ports:
         - containerPort: 8082
           name: http
@@ -587,11 +587,11 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: ai-service
+  name: conversation-navigator-service
   namespace: app-namespace
 spec:
   selector:
-    app: ai-service
+    app: conversation-navigator
   ports:
   - port: 8081
     targetPort: 8081
@@ -602,11 +602,11 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: api-service
+  name: call-initiation-service
   namespace: app-namespace
 spec:
   selector:
-    app: api-service
+    app: call-initiation-service
   ports:
   - port: 8082
     targetPort: 8082
@@ -626,7 +626,6 @@ spec:
     kind: StatefulSet
     name: neo4j-read-replicas
   minReplicas: 2
-  maxReplicas: 10
   metrics:
   - type: Resource
     resource:
@@ -653,7 +652,6 @@ spec:
     kind: StatefulSet
     name: redis-cluster
   minReplicas: 3
-  maxReplicas: 10
   metrics:
   - type: Resource
     resource:
@@ -680,7 +678,6 @@ spec:
     kind: Deployment
     name: websocket-service
   minReplicas: 3
-  maxReplicas: 20
   metrics:
   - type: Resource
     resource:
@@ -699,15 +696,14 @@ spec:
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: ai-service-hpa
+  name: conversation-navigator-hpa
   namespace: app-namespace
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: ai-service
+    name: conversation-navigator
   minReplicas: 2
-  maxReplicas: 10
   metrics:
   - type: Resource
     resource:
@@ -726,15 +722,14 @@ spec:
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: api-service-hpa
+  name: call-initiation-service-hpa
   namespace: app-namespace
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: api-service
+    name: call-initiation-service
   minReplicas: 2
-  maxReplicas: 15
   metrics:
   - type: Resource
     resource:
@@ -792,6 +787,6 @@ spec:
         pathType: Prefix
         backend:
           service:
-            name: api-service
+            name: call-initiation-service
             port:
               number: 8082

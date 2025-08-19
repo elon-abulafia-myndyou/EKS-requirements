@@ -7,17 +7,42 @@ This document outlines the requirements for an Amazon EKS cluster designed to su
 
 ### Base EKS Configuration
 - **Kubernetes Version**: 1.28 or later
-- **Region**: [To be specified by DevOps team]
+- **Region**: us-west-2 (Oregon)
 - **Node Groups**: 
-  - Mixed instance types for cost optimization
-  - Minimum 3 nodes across 3 AZs for high availability
-  - Auto-scaling enabled with min: 3, max: 20 nodes
+  - Service-specific node groups for optimal resource allocation
+  - Single AZ deployment for cost optimization
+  - Auto-scaling enabled per service requirements
 
 ### Networking
 - **VPC**: Custom VPC with public and private subnets
 - **Security Groups**: Strict ingress/egress rules
 - **Load Balancer**: Application Load Balancer (ALB) with SSL termination
 - **Ingress Controller**: AWS Load Balancer Controller
+
+### Node Groups Configuration
+- **Database Node Group**: 
+  - Instance types: c5.2xlarge, c5.4xlarge
+  - Purpose: Neo4j and Redis clusters
+  - Auto-scaling: min 2, no max limit
+  - AZ: us-west-2a
+
+- **WebSocket Service Node Group**:
+  - Instance types: c5.large, c5.xlarge
+  - Purpose: WebSocket service and HAProxy
+  - Auto-scaling: min 2, no max limit
+  - AZ: us-west-2a
+
+- **Conversation Navigator Node Group**:
+  - Instance types: c5.xlarge, c5.2xlarge
+  - Purpose: Conversation Navigator with Gemini integration
+  - Auto-scaling: min 1, no max limit
+  - AZ: us-west-2a
+
+- **Call Initiation Service Node Group**:
+  - Instance types: c5.large, c5.xlarge
+  - Purpose: Call Initiation Service with ElevenLabs integration
+  - Auto-scaling: min 2, no max limit
+  - AZ: us-west-2a
 
 ## Component Specifications
 
@@ -59,7 +84,6 @@ HorizontalPodAutoscaler:
           type: AverageValue
           averageValue: 100ms
   minReplicas: 2
-  maxReplicas: 10
   scaleUpBehavior:
     stabilizationWindowSeconds: 60
   scaleDownBehavior:
@@ -76,7 +100,7 @@ HorizontalPodAutoscaler:
 
 #### Configuration
 - **Deployment Type**: StatefulSet with Redis Cluster mode
-- **Replicas**: 3-10 nodes (auto-scaled)
+- **Replicas**: 1-10 nodes (auto-scaled)
 - **Storage**: 20GB GP3 SSD per node
 - **Resources**: 2 CPU, 4GB RAM per node
 
@@ -103,8 +127,7 @@ HorizontalPodAutoscaler:
         target:
           type: AverageValue
           averageValue: 10000
-  minReplicas: 3
-  maxReplicas: 10
+  minReplicas: 1
 ```
 
 #### Monitoring Requirements
@@ -113,7 +136,7 @@ HorizontalPodAutoscaler:
 - Hit/miss ratio
 - Network I/O
 
-### 3. HAProxy Load Balancer
+### 3. HAProxy Load Balancer?
 
 #### Configuration
 - **Deployment Type**: Deployment with 2-3 replicas
@@ -159,7 +182,7 @@ haproxy.cfg:
 
 #### Configuration
 - **Deployment Type**: Deployment with auto-scaling
-- **Replicas**: 3-20 (auto-scaled)
+- **Replicas**: 2-20 (auto-scaled)
 - **Resources**: 1 CPU, 2GB RAM per pod
 - **Port**: 8080
 
@@ -185,9 +208,8 @@ HorizontalPodAutoscaler:
           name: websocket_connections
         target:
           type: AverageValue
-          averageValue: 1000
-  minReplicas: 3
-  maxReplicas: 20
+          averageValue: 5
+  minReplicas: 2
   scaleUpBehavior:
     stabilizationWindowSeconds: 30
   scaleDownBehavior:
@@ -205,7 +227,7 @@ HorizontalPodAutoscaler:
 - Redis for session storage
 - HAProxy for load balancing
 
-### 5. AI Service (Google Gemini Integration)
+### 5. Conversation Navigator (Google Gemini Integration)
 
 #### Configuration
 - **Deployment Type**: Deployment with auto-scaling
@@ -237,7 +259,6 @@ HorizontalPodAutoscaler:
           type: AverageValue
           averageValue: 100
   minReplicas: 2
-  maxReplicas: 10
 ```
 
 #### Features
@@ -251,11 +272,11 @@ HorizontalPodAutoscaler:
 - Neo4j database access
 - Redis for caching and queuing
 
-### 6. API Service (ElevenLabs Integration)
+### 6. Call Initiation Service (ElevenLabs Integration)
 
 #### Configuration
 - **Deployment Type**: Deployment with auto-scaling
-- **Replicas**: 2-15 (auto-scaled)
+- **Replicas**: 1-15 (auto-scaled)
 - **Resources**: 1 CPU, 2GB RAM per pod
 - **Port**: 8082
 
@@ -282,8 +303,7 @@ HorizontalPodAutoscaler:
         target:
           type: AverageValue
           averageValue: 50
-  minReplicas: 2
-  maxReplicas: 15
+  minReplicas: 1
 ```
 
 #### Features
@@ -350,13 +370,13 @@ HorizontalPodAutoscaler:
 - API response time: < 200ms (P95)
 - WebSocket message delivery: < 50ms
 - Database query latency: < 100ms (P95)
-- AI service response: < 5 seconds
+- Conversation Navigator response: < 5 seconds
 
 ### Throughput Targets
 - API requests: 1000 RPS
 - WebSocket connections: 10,000 concurrent
 - Database transactions: 5000 TPS
-- AI requests: 100 requests/minute
+- Conversation Navigator requests: 100 requests/minute
 
 ## Cost Optimization
 
@@ -382,7 +402,7 @@ HorizontalPodAutoscaler:
 ### Environment Strategy
 - **Development**: Single-node clusters
 - **Staging**: Full-scale testing
-- **Production**: Multi-AZ with full redundancy
+- **Production**: Single AZ (us-west-2a) with service-specific node groups
 
 ## Maintenance and Updates
 

@@ -10,9 +10,9 @@
   - [ ] Enable required AWS services (EKS, ECR, etc.)
 
 - [ ] **VPC and Networking**
-  - [ ] Create custom VPC with public and private subnets
+  - [ ] Create custom VPC with public and private subnets in us-west-2a
   - [ ] Configure route tables and internet gateway
-  - [ ] Set up NAT gateways for private subnets
+  - [ ] Set up NAT gateway for private subnet
   - [ ] Configure security groups with minimal required access
   - [ ] Verify subnet CIDR ranges don't conflict
 
@@ -30,10 +30,13 @@
   - [ ] Configure cluster autoscaler
 
 - [ ] **Node Groups**
-  - [ ] Create managed node groups with mixed instance types
-  - [ ] Configure auto-scaling (min: 3, max: 20 nodes)
+  - [ ] Create service-specific node groups in us-west-2a
+  - [ ] Configure database node group (c5.2xlarge, c5.4xlarge) - min: 2, no max
+  - [ ] Configure WebSocket Service node group (c5.large, c5.xlarge) - min: 2, no max
+- [ ] Configure Conversation Navigator node group (c5.xlarge, c5.2xlarge) - min: 1, no max
+- [ ] Configure Call Initiation Service node group (c5.large, c5.xlarge) - min: 2, no max
   - [ ] Set up spot instances for cost optimization
-  - [ ] Configure node labels and taints if needed
+  - [ ] Configure node labels and taints for service affinity
 
 ### 3. Storage and Persistence
 - [ ] **EBS Configuration**
@@ -95,14 +98,14 @@
   - [ ] Test WebSocket connections
   - [ ] Verify session persistence
 
-- [ ] **AI Service (Gemini)**
+- [ ] **Conversation Navigator (Gemini)**
   - [ ] Build and push container image
   - [ ] Deploy with auto-scaling
   - [ ] Configure API key secrets
   - [ ] Test Gemini API integration
   - [ ] Set up request queuing
 
-- [ ] **API Service (ElevenLabs)**
+- [ ] **Call Initiation Service (ElevenLabs)**
   - [ ] Build and push container image
   - [ ] Deploy with auto-scaling
   - [ ] Configure API key secrets
@@ -172,13 +175,13 @@
   - [ ] Test scaling behavior
   - [ ] Monitor connection distribution
 
-- [ ] **AI Service HPA**
+- [ ] **Conversation Navigator HPA**
   - [ ] Configure CPU and memory metrics
   - [ ] Set up Gemini request metrics
   - [ ] Test scaling behavior
   - [ ] Monitor API response times
 
-- [ ] **API Service HPA**
+- [ ] **Call Initiation Service HPA**
   - [ ] Configure CPU and memory metrics
   - [ ] Set up HTTP request metrics
   - [ ] Test scaling behavior
@@ -196,8 +199,8 @@
 - [ ] **Service Integration Testing**
   - [ ] Test WebSocket connections through HAProxy
   - [ ] Verify session affinity
-  - [ ] Test AI service with Gemini
-  - [ ] Test API service with ElevenLabs
+  - [ ] Test Conversation Navigator with Gemini
+- [ ] Test Call Initiation Service with ElevenLabs
   - [ ] Verify inter-service communication
 
 ### 15. Performance Testing
@@ -206,7 +209,7 @@
   - [ ] Verify auto-scaling under load
   - [ ] Test database performance
   - [ ] Measure API response times
-  - [ ] Test AI service throughput
+  - [ ] Test Conversation Navigator throughput
 
 - [ ] **Stress Testing**
   - [ ] Test system under high load
