@@ -1,0 +1,797 @@
+# Kubernetes Manifests Template for EKS Cluster
+# This template provides basic configurations for all components
+# Modify according to your specific requirements and environment
+
+---
+# Namespace for the application
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: app-namespace
+  labels:
+    name: app-namespace
+
+---
+# Service Account for Neo4j
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: neo4j-service-account
+  namespace: app-namespace
+
+---
+# Service Account for Redis
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: redis-service-account
+  namespace: app-namespace
+
+---
+# Service Account for WebSocket Service
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: websocket-service-account
+  namespace: app-namespace
+
+---
+# Service Account for AI Service
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ai-service-account
+  namespace: app-namespace
+
+---
+# Service Account for API Service
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: api-service-account
+  namespace: app-namespace
+
+---
+# Neo4j Core StatefulSet
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: neo4j-core
+  namespace: app-namespace
+spec:
+  serviceName: neo4j-core
+  replicas: 1
+  selector:
+    matchLabels:
+      app: neo4j-core
+  template:
+    metadata:
+      labels:
+        app: neo4j-core
+    spec:
+      serviceAccountName: neo4j-service-account
+      containers:
+      - name: neo4j
+        image: neo4j:5.15-enterprise
+        ports:
+        - containerPort: 7474
+          name: http
+        - containerPort: 7687
+          name: bolt
+        env:
+        - name: NEO4J_AUTH
+          value: "neo4j/password"
+        - name: NEO4J_ACCEPT_LICENSE_AGREEMENT
+          value: "yes"
+        - name: NEO4J_dbms_memory_heap_initial__size
+          value: "8G"
+        - name: NEO4J_dbms_memory_heap_max__size
+          value: "8G"
+        - name: NEO4J_dbms_memory_pagecache_size
+          value: "4G"
+        resources:
+          requests:
+            memory: "16Gi"
+            cpu: "4"
+          limits:
+            memory: "16Gi"
+            cpu: "4"
+        volumeMounts:
+        - name: neo4j-data
+          mountPath: /data
+  volumeClaimTemplates:
+  - metadata:
+      name: neo4j-data
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      storageClassName: "gp3"
+      resources:
+        requests:
+          storage: 100Gi
+
+---
+# Neo4j Read Replicas StatefulSet
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: neo4j-read-replicas
+  namespace: app-namespace
+spec:
+  serviceName: neo4j-read-replicas
+  replicas: 2
+  selector:
+    matchLabels:
+      app: neo4j-read-replica
+  template:
+    metadata:
+      labels:
+        app: neo4j-read-replica
+    spec:
+      serviceAccountName: neo4j-service-account
+      containers:
+      - name: neo4j
+        image: neo4j:5.15-enterprise
+        ports:
+        - containerPort: 7474
+          name: http
+        - containerPort: 7687
+          name: bolt
+        env:
+        - name: NEO4J_AUTH
+          value: "neo4j/password"
+        - name: NEO4J_ACCEPT_LICENSE_AGREEMENT
+          value: "yes"
+        - name: NEO4J_dbms_mode
+          value: "READ_REPLICA"
+        - name: NEO4J_causal__clustering_expected__core__cluster__size
+          value: "1"
+        - name: NEO4J_causal__clustering_initial__discovery__members
+          value: "neo4j-core-0.neo4j-core:5000"
+        - name: NEO4J_dbms_memory_heap_initial__size
+          value: "4G"
+        - name: NEO4J_dbms_memory_heap_max__size
+          value: "4G"
+        - name: NEO4J_dbms_memory_pagecache_size
+          value: "2G"
+        resources:
+          requests:
+            memory: "8Gi"
+            cpu: "2"
+          limits:
+            memory: "8Gi"
+            cpu: "2"
+        volumeMounts:
+        - name: neo4j-data
+          mountPath: /data
+  volumeClaimTemplates:
+  - metadata:
+      name: neo4j-data
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      storageClassName: "gp3"
+      resources:
+        requests:
+          storage: 50Gi
+
+---
+# Redis Cluster StatefulSet
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: redis-cluster
+  namespace: app-namespace
+spec:
+  serviceName: redis-cluster
+  replicas: 3
+  selector:
+    matchLabels:
+      app: redis-cluster
+  template:
+    metadata:
+      labels:
+        app: redis-cluster
+    spec:
+      serviceAccountName: redis-service-account
+      containers:
+      - name: redis
+        image: redis:7.2-alpine
+        ports:
+        - containerPort: 6379
+          name: redis
+        command:
+        - redis-server
+        - /etc/redis/redis.conf
+        - --cluster-enabled
+        - yes
+        - --cluster-config-file
+        - nodes.conf
+        - --cluster-node-timeout
+        - "5000"
+        - --appendonly
+        - yes
+        resources:
+          requests:
+            memory: "4Gi"
+            cpu: "2"
+          limits:
+            memory: "4Gi"
+            cpu: "2"
+        volumeMounts:
+        - name: redis-data
+          mountPath: /data
+        - name: redis-config
+          mountPath: /etc/redis
+      volumes:
+      - name: redis-config
+        configMap:
+          name: redis-config
+  volumeClaimTemplates:
+  - metadata:
+      name: redis-data
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      storageClassName: "gp3"
+      resources:
+        requests:
+          storage: 20Gi
+
+---
+# Redis ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: redis-config
+  namespace: app-namespace
+data:
+  redis.conf: |
+    bind 0.0.0.0
+    port 6379
+    timeout 0
+    tcp-keepalive 300
+    daemonize no
+    supervised no
+    pidfile /var/run/redis_6379.pid
+    loglevel notice
+    logfile ""
+    databases 16
+    save 900 1
+    save 300 10
+    save 60 10000
+    stop-writes-on-bgsave-error yes
+    rdbcompression yes
+    rdbchecksum yes
+    dbfilename dump.rdb
+    dir /data
+    maxmemory 3gb
+    maxmemory-policy allkeys-lru
+
+---
+# HAProxy Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: haproxy
+  namespace: app-namespace
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: haproxy
+  template:
+    metadata:
+      labels:
+        app: haproxy
+    spec:
+      containers:
+      - name: haproxy
+        image: haproxy:2.8-alpine
+        ports:
+        - containerPort: 80
+          name: http
+        - containerPort: 443
+          name: https
+        - containerPort: 8404
+          name: stats
+        volumeMounts:
+        - name: haproxy-config
+          mountPath: /usr/local/etc/haproxy
+        resources:
+          requests:
+            memory: "2Gi"
+            cpu: "1"
+          limits:
+            memory: "2Gi"
+            cpu: "1"
+      volumes:
+      - name: haproxy-config
+        configMap:
+          name: haproxy-config
+
+---
+# HAProxy ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: haproxy-config
+  namespace: app-namespace
+data:
+  haproxy.cfg: |
+    global
+      maxconn 50000
+      log stdout format raw local0 info
+    
+    defaults
+      mode tcp
+      timeout connect 5s
+      timeout client 50s
+      timeout server 50s
+    
+    frontend websocket_frontend
+      bind *:80
+      bind *:443 ssl crt /etc/ssl/certs/server.pem
+      default_backend websocket_backend
+      stick-table type ip size 200k expire 30m
+      stick on src
+    
+    backend websocket_backend
+      balance roundrobin
+      stick match src
+      stick store-request src
+      server websocket1 websocket-service-1:8080 check
+      server websocket2 websocket-service-2:8080 check
+      server websocket3 websocket-service-3:8080 check
+    
+    listen stats
+      bind *:8404
+      mode http
+      stats enable
+      stats uri /stats
+      stats refresh 10s
+
+---
+# WebSocket Service Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: websocket-service
+  namespace: app-namespace
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: websocket-service
+  template:
+    metadata:
+      labels:
+        app: websocket-service
+    spec:
+      serviceAccountName: websocket-service-account
+      containers:
+      - name: websocket-service
+        image: your-registry/websocket-service:latest
+        ports:
+        - containerPort: 8080
+          name: websocket
+        env:
+        - name: NEO4J_URI
+          value: "bolt://neo4j-core-0.neo4j-core:7687"
+        - name: REDIS_HOST
+          value: "redis-cluster-0.redis-cluster"
+        - name: REDIS_PORT
+          value: "6379"
+        resources:
+          requests:
+            memory: "2Gi"
+            cpu: "1"
+          limits:
+            memory: "2Gi"
+            cpu: "1"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+
+---
+# AI Service Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-service
+  namespace: app-namespace
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ai-service
+  template:
+    metadata:
+      labels:
+        app: ai-service
+    spec:
+      serviceAccountName: ai-service-account
+      containers:
+      - name: ai-service
+        image: your-registry/ai-service:latest
+        ports:
+        - containerPort: 8081
+          name: http
+        env:
+        - name: NEO4J_URI
+          value: "bolt://neo4j-core-0.neo4j-core:7687"
+        - name: REDIS_HOST
+          value: "redis-cluster-0.redis-cluster"
+        - name: REDIS_PORT
+          value: "6379"
+        - name: GEMINI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: gemini-secret
+              key: api-key
+        resources:
+          requests:
+            memory: "4Gi"
+            cpu: "2"
+          limits:
+            memory: "4Gi"
+            cpu: "2"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8081
+          initialDelaySeconds: 30
+          periodSeconds: 10
+
+---
+# API Service Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-service
+  namespace: app-namespace
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: api-service
+  template:
+    metadata:
+      labels:
+        app: api-service
+    spec:
+      serviceAccountName: api-service-account
+      containers:
+      - name: api-service
+        image: your-registry/api-service:latest
+        ports:
+        - containerPort: 8082
+          name: http
+        env:
+        - name: NEO4J_URI
+          value: "bolt://neo4j-core-0.neo4j-core:7687"
+        - name: ELEVENLABS_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: elevenlabs-secret
+              key: api-key
+        resources:
+          requests:
+            memory: "2Gi"
+            cpu: "1"
+          limits:
+            memory: "2Gi"
+            cpu: "1"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8082
+          initialDelaySeconds: 30
+          periodSeconds: 10
+
+---
+# Services
+apiVersion: v1
+kind: Service
+metadata:
+  name: neo4j-core-service
+  namespace: app-namespace
+spec:
+  selector:
+    app: neo4j-core
+  ports:
+  - port: 7474
+    targetPort: 7474
+    name: http
+  - port: 7687
+    targetPort: 7687
+    name: bolt
+  type: ClusterIP
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: neo4j-read-replicas-service
+  namespace: app-namespace
+spec:
+  selector:
+    app: neo4j-read-replica
+  ports:
+  - port: 7474
+    targetPort: 7474
+    name: http
+  - port: 7687
+    targetPort: 7687
+    name: bolt
+  type: ClusterIP
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-cluster-service
+  namespace: app-namespace
+spec:
+  selector:
+    app: redis-cluster
+  ports:
+  - port: 6379
+    targetPort: 6379
+    name: redis
+  type: ClusterIP
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: haproxy-service
+  namespace: app-namespace
+spec:
+  selector:
+    app: haproxy
+  ports:
+  - port: 80
+    targetPort: 80
+    name: http
+  - port: 443
+    targetPort: 443
+    name: https
+  - port: 8404
+    targetPort: 8404
+    name: stats
+  type: LoadBalancer
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: websocket-service
+  namespace: app-namespace
+spec:
+  selector:
+    app: websocket-service
+  ports:
+  - port: 8080
+    targetPort: 8080
+    name: websocket
+  type: ClusterIP
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ai-service
+  namespace: app-namespace
+spec:
+  selector:
+    app: ai-service
+  ports:
+  - port: 8081
+    targetPort: 8081
+    name: http
+  type: ClusterIP
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-service
+  namespace: app-namespace
+spec:
+  selector:
+    app: api-service
+  ports:
+  - port: 8082
+    targetPort: 8082
+    name: http
+  type: LoadBalancer
+
+---
+# Horizontal Pod Autoscalers
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: neo4j-read-replicas-hpa
+  namespace: app-namespace
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: StatefulSet
+    name: neo4j-read-replicas
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: redis-cluster-hpa
+  namespace: app-namespace
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: StatefulSet
+    name: redis-cluster
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 75
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 85
+
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: websocket-service-hpa
+  namespace: app-namespace
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: websocket-service
+  minReplicas: 3
+  maxReplicas: 20
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: ai-service-hpa
+  namespace: app-namespace
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: ai-service
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 75
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: api-service-hpa
+  namespace: app-namespace
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: api-service
+  minReplicas: 2
+  maxReplicas: 15
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 75
+
+---
+# Secrets (placeholder - replace with actual secret management)
+apiVersion: v1
+kind: Secret
+metadata:
+  name: gemini-secret
+  namespace: app-namespace
+type: Opaque
+data:
+  api-key: <base64-encoded-api-key>
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: elevenlabs-secret
+  namespace: app-namespace
+type: Opaque
+data:
+  api-key: <base64-encoded-api-key>
+
+---
+# Ingress for API Service
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: api-ingress
+  namespace: app-namespace
+  annotations:
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+    alb.ingress.kubernetes.io/certificate-arn: <your-ssl-certificate-arn>
+spec:
+  rules:
+  - host: api.yourdomain.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: api-service
+            port:
+              number: 8082
